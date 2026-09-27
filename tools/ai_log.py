@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -185,6 +186,24 @@ class Redactor:
 # ---------- hook ----------
 
 
+def training_active() -> bool:
+    """Логируем только в запущенной тренировке и её ветке."""
+    try:
+        sys.path.insert(0, str(TOOLS))
+        import timer
+
+        state = timer.load()
+        if state is None or state.get("paused_at") is not None or timer.elapsed(state) >= timer.TOTAL:
+            return False
+        branch = (ROOT / ".local" / "interview-branch").read_text().strip()
+        current = subprocess.run(
+            ["git", "branch", "--show-current"], cwd=ROOT, capture_output=True, text=True, timeout=2
+        )
+        return bool(branch) and current.returncode == 0 and current.stdout.strip() == branch
+    except Exception:
+        return False
+
+
 def phase_tag(now: float) -> str:
     """`Реализация с AI › Ключевые ручки · T+42:10` from the timer, or "" when it is not running."""
     try:
@@ -323,7 +342,7 @@ def cmd_hook(tool: str, p: dict) -> None:
 def hook_main(tool: str) -> None:
     """Never raises, never prints: hook stdout enters the agent's context and exit code 2
     blocks the prompt."""
-    if os.environ.get("AI_LOGS_DISABLE") == "1" or tool not in TOOL_NAMES:
+    if os.environ.get("AI_LOGS_DISABLE") == "1" or tool not in TOOL_NAMES or not training_active():
         return
     try:
         raw = sys.stdin.read() if sys.stdin and not sys.stdin.isatty() else ""

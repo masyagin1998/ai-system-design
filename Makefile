@@ -7,6 +7,14 @@ DC := docker compose
 EXEC := $(DC) exec -T api
 TIMER := /usr/bin/python3 tools/timer.py
 E ?= low
+START_BRANCH := $(word 2,$(MAKECMDGOALS))
+export START_BRANCH
+
+# `make start <branch-name>`: имя ветки также передаётся make как отдельная цель.
+ifneq ($(filter start,$(MAKECMDGOALS)),)
+%:
+	@:
+endif
 
 .PHONY: help init up build down logs migration migrate psql demo test fmt reset ai timer timer-stop start finish
 
@@ -65,20 +73,30 @@ timer: ## Открыть таймер без сброса; тест: make timer 
 timer-stop: ## Остановить и закрыть таймер
 	@$(TIMER) stop
 
-start: ## СТАРТ интервью: ветка interview-*, чистые ai-logs, таймер с 00:00
-	@branch="$$(git branch --show-current)"; \
-	if [[ "$$branch" == interview-* ]] && $(TIMER) active; then \
+start: ## СТАРТ интервью: make start <branch-name>; чистые ai-logs, таймер с 00:00
+	@[[ $(words $(MAKECMDGOALS)) -eq 2 ]] && [[ -n "$$START_BRANCH" ]] || \
+		{ echo 'usage: make start <branch-name>'; exit 2; }
+	@git check-ref-format --branch "$$START_BRANCH" >/dev/null || exit 2
+	@case "$$START_BRANCH" in \
+		main|master|dev|test|prod|help|init|up|build|down|logs|migration|migrate|psql|demo|fmt|reset|ai|timer|timer-stop|start|finish) \
+			echo 'Укажи отдельную ветку для интервью, не совпадающую с make-командой'; exit 2;; \
+	esac
+	@branch="$$(git branch --show-current)"; active="$$(cat .local/interview-branch 2>/dev/null || true)"; \
+	if $(TIMER) active && [[ "$$branch" == "$$START_BRANCH" && "$$active" == "$$START_BRANCH" ]]; then \
 		echo "Интервью уже идёт: открываю таймер"; $(TIMER) open; \
-	elif [[ "$$branch" == interview-* ]]; then \
-		echo "Ветка $$branch от прошлого интервью: git switch main, затем make start"; exit 2; \
+	elif $(TIMER) active && [[ -n "$$active" ]]; then \
+		echo "Сначала останови тренировку в ветке $$active: make timer-stop"; exit 2; \
 	else \
-		git switch -c "interview-$$(date +%Y%m%d-%H%M)" && python3 tools/ai_log.py clean && $(TIMER) start && \
+		git switch -c "$$START_BRANCH" && \
+		python3 tools/ai_log.py clean && $(TIMER) start && \
+		mkdir -p .local && printf '%s\n' "$$START_BRANCH" > .local/interview-branch && \
 		echo "Открой НОВУЮ сессию агента (make ai): хуки ai-logs подхватываются при старте сессии"; \
 	fi
 
-finish: ## ФИНИШ: проверка секретов, commit и push ветки interview-*
-	@[[ "$$(git branch --show-current)" == interview-* ]] || \
-		{ echo "Не ветка interview-*: сначала make start (иначе push уйдёт в main шаблона)"; exit 2; }
+finish: ## ФИНИШ: проверка секретов, commit и push ветки активной тренировки
+	@branch="$$(git branch --show-current)"; active="$$(cat .local/interview-branch 2>/dev/null || true)"; \
+	[[ -n "$$active" && "$$branch" == "$$active" ]] || \
+		{ echo "Не ветка тренировки: сначала make start <branch-name>"; exit 2; }
 	@git ls-files -co --exclude-standard -z | python3 tools/ai_log.py scan -
 	git add -A
 	git diff --cached --quiet || git commit -m "Interview result"

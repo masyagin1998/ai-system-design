@@ -1,0 +1,31 @@
+# GPT-6-Luna Fast для интервью. Меньше инструментов в системном промпте — быстрее ответы.
+model = "gpt-6-luna"
+model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "medium"
+service_tier = "fast"
+model_verbosity = "low"
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+web_search = "disabled"
+
+[features]
+fast_mode = true
+hooks = true
+apps = false
+browser_use = false
+computer_use = false
+goals = false
+image_generation = false
+multi_agent = false
+plugins = false
+skill_search = false
+tool_suggest = false
+
+[mcp_servers.context7]
+enabled = false
+
+[mcp_servers.playwright]
+enabled = false
+
+[mcp_servers.trello]
+enabled = false

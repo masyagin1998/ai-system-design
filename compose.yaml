@@ -1,0 +1,77 @@
+# `make up` поднимает всё: PostgreSQL, Redis, RustFS (S3), api, worker. Порты только на localhost.
+name: mvp
+
+x-app: &app
+  build: .
+  image: mvp-app
+  init: true
+  restart: unless-stopped
+  user: "${APP_UID:-1000}:${APP_GID:-1000}" # файлы миграций на хосте принадлежат вам, а не root
+  volumes: [".:/code"]
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+    rustfs: {condition: service_healthy}
+
+x-health: &health
+  interval: 5s
+  timeout: 3s
+  retries: 30
+  start_period: 30s
+  start_interval: 1s
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["pg_data:/var/lib/postgresql"] # PG18: родительский каталог, не .../data
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d app"]
+
+  redis:
+    image: redis:8.10.0
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"] # кэш, без персистентности
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "redis-cli", "ping"]
+
+  rustfs: # S3-совместимое хранилище; консоль http://localhost:9001 (rustfsadmin / rustfsadmin)
+    image: rustfs/rustfs:1.0.0
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    volumes: ["s3_data:/data"]
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:9000/"]
+
+  api:
+    <<: *app
+    command: sh -c "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app"
+    ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+
+  worker: # фоновые задачи из таблицы jobs; перезапускается сам при правке app/
+    <<: *app
+    command: watchfiles --filter python "python -m app.worker" app
+    depends_on:
+      api: {condition: service_healthy} # миграции уже применены
+
+volumes:
+  pg_data: {}
+  s3_data: {}

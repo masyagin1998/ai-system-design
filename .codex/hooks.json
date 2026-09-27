@@ -1,0 +1,49 @@
+{
+  "description": "ai-logs: append the Codex dialogue to ai-logs/ (tools/ai_log.py).",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "\"$(git rev-parse --show-toplevel)/tools/ai_log.py\" hook codex",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "\"$(git rev-parse --show-toplevel)/tools/ai_log.py\" hook codex",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "\"$(git rev-parse --show-toplevel)/tools/ai_log.py\" hook codex",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "\"$(git rev-parse --show-toplevel)/tools/ai_log.py\" hook codex",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

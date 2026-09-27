@@ -6,7 +6,7 @@ export APP_GID := $(shell id -g)
 DC := docker compose
 EXEC := $(DC) exec -T api
 TIMER := /usr/bin/python3 tools/timer.py
-E ?= medium
+E ?= low
 
 .PHONY: help init up build down logs migration migrate psql demo test fmt reset ai timer timer-stop start finish
 
@@ -56,7 +56,7 @@ reset: ## УДАЛИТЬ все данные (volumes) и поднять зан�
 	$(DC) down -v
 	$(MAKE) up
 
-ai: ## Codex GPT-6-Luna Fast: make ai [E=low|medium|high]
+ai: ## Codex GPT-6-Luna Fast: make ai [E=low|medium|high], по умолчанию low
 	codex -m gpt-6-luna -c 'model_reasoning_effort="$(E)"' -c 'plan_mode_reasoning_effort="$(E)"' -c 'service_tier="fast"'
 
 timer: ## Открыть таймер без сброса; тест: make timer SPEED=60 [AT=33]

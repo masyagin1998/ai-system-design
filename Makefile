@@ -6,7 +6,7 @@ export APP_GID := $(shell id -g)
 DC := docker compose
 EXEC := $(DC) exec -T api
 TIMER := /usr/bin/python3 tools/timer.py
-E ?= low
+E ?= medium
 START_BRANCH := $(word 2,$(MAKECMDGOALS))
 export START_BRANCH
 
@@ -64,7 +64,7 @@ reset: ## УДАЛИТЬ все данные (volumes) и поднять зан�
 	$(DC) down -v
 	$(MAKE) up
 
-ai: ## Codex GPT-6-Luna Fast: make ai [E=low|medium|high], по умолчанию low
+ai: ## Codex GPT-6-Luna Fast: make ai [E=low|medium|high], по умолчанию medium
 	codex -m gpt-6-luna -c 'model_reasoning_effort="$(E)"' -c 'plan_mode_reasoning_effort="$(E)"' -c 'service_tier="fast"'
 
 timer: ## Открыть таймер без сброса; тест: make timer SPEED=60 [AT=33]

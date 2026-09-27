@@ -1,7 +1,7 @@
-# GPT-6-Luna Fast Low для интервью (по бенчмарку в README). Меньше инструментов — быстрее ответы.
+# GPT-6-Luna Fast Medium для интервью. Меньше инструментов — быстрее ответы.
 model = "gpt-6-luna"
-model_reasoning_effort = "low"
-plan_mode_reasoning_effort = "low"
+model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "medium"
 service_tier = "fast"
 model_verbosity = "low"
 approval_policy = "never"

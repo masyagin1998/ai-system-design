@@ -1,7 +1,7 @@
 # AI System Design — шаблон MVP
 
 Шаблон для секции AI System Design (2 часа): ревью RFC джуна → работающий MVP через curl →
-код руками. Заточен под GPT-6-Luna Fast на Low/Medium: агент сразу пишет простой синхронный
+код руками. Заточен под GPT-6-Luna Fast на Medium: агент сразу пишет простой синхронный
 код по готовым образцам, а production-архитектура и НФТ живут в [spec.md](spec.md) и [plan.md](plan.md).
 
 **Стек:** FastAPI · SQLAlchemy 2 (sync + async, psycopg 3) · Alembic · PostgreSQL 18 + pg_trgm ·
@@ -42,8 +42,8 @@ make timer SPEED=60    # посмотреть таймер (2 часа за 2 м
 
 ## Какой reasoning
 
-**Везде Low** (по умолчанию в `.codex/config.toml` и `make ai`). Medium — если Low дважды
-промахнулся на одном шаге: он тщательнее проверяет себя, но медленнее. High не нужен:
+**Везде Medium** (по умолчанию в `.codex/config.toml` и `make ai`). Low можно выбрать
+для быстрых простых шагов через `make ai E=low`. High не нужен:
 на документах он в 2,5 раза медленнее без выигрыша в качестве.
 
 Бенчмарк 27.09.2026, GPT-6-Luna Fast, `codex exec` на чистой копии репозитория; каждый прогон
@@ -72,7 +72,7 @@ make timer SPEED=60    # посмотреть таймер (2 часа за 2 м
 | `make migrate` · `make psql` | применить миграции · консоль PostgreSQL |
 | `make demo` · `make test` · `make fmt` | curl-сценарий · pytest · ruff |
 | `make reset` | **удалить данные** и поднять заново |
-| `make ai [E=medium]` | Codex GPT-6-Luna Fast (Low по умолчанию); в сессии — `/model` |
+| `make ai [E=low]` | Codex GPT-6-Luna Fast (Medium по умолчанию); в сессии — `/model` |
 | `make timer [SPEED=60 AT=33]` · `make timer-stop` | таймер (без сброса) · остановить |
 | `make start <branch-name>` · `make finish` | старт интервью в указанной ветке · commit + push результата |
 
@@ -90,6 +90,6 @@ API: http://localhost:8000/docs · консоль S3: http://localhost:9001 (rus
   Тащится мышью; двойной клик — компактный режим; ПКМ — пауза, ±1 минута, сброс.
 - **ai-logs** — хуки Codex и Claude пишут `ai-logs/PROMPTS.md` и `ai-logs/sessions/` только
   во время активной тренировки в её ветке, с этапом таймера и маскированием секретов.
-- **Codex** — `.codex/config.toml`: Luna Fast Low, без подтверждений, без субагентов, плагинов,
+- **Codex** — `.codex/config.toml`: Luna Fast Medium, без подтверждений, без субагентов, плагинов,
   MCP и веб-поиска. Хуки ai-logs Codex доверяет по пути и хешу: после правки `.codex/hooks.json`
   их нужно заново одобрить в `/hooks`.

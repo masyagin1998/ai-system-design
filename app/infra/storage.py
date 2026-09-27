@@ -14,6 +14,7 @@ from botocore.exceptions import ClientError
 from app.settings import settings
 
 _cfg = Config(
+    signature_version="s3v4",
     s3={"addressing_style": "path"},
     request_checksum_calculation="when_required",  # иначе RustFS/MinIO ругаются на checksum
     response_checksum_validation="when_required",

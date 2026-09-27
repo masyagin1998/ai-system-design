@@ -21,11 +21,15 @@ plugins = false
 skill_search = false
 tool_suggest = false
 
+# Транспорт указан, чтобы конфиг был валиден и на машине без этих серверов в ~/.codex.
 [mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
 enabled = false
 
 [mcp_servers.playwright]
+command = "npx"
 enabled = false
 
 [mcp_servers.trello]
+url = "https://mcp.trello.com/v1"
 enabled = false

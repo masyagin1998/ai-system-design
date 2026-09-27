@@ -21,7 +21,7 @@ def upgrade() -> None:
         "items",
         sa.Column("id", sa.BigInteger(), nullable=False),
         sa.Column("title", sa.String(length=200), nullable=False),
-        sa.Column("status", sa.String(length=20), nullable=False),
+        sa.Column("status", sa.String(length=20), server_default="new", nullable=False),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
@@ -38,9 +38,11 @@ def upgrade() -> None:
         "jobs",
         sa.Column("id", sa.BigInteger(), nullable=False),
         sa.Column("kind", sa.String(length=100), nullable=False),
-        sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("status", sa.String(length=20), nullable=False),
-        sa.Column("attempts", sa.Integer(), nullable=False),
+        sa.Column(
+            "payload", postgresql.JSONB(astext_type=sa.Text()), server_default="{}", nullable=False
+        ),
+        sa.Column("status", sa.String(length=20), server_default="new", nullable=False),
+        sa.Column("attempts", sa.Integer(), server_default="0", nullable=False),
         sa.Column(
             "run_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),

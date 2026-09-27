@@ -68,7 +68,7 @@ PATTERNS = {
     "github": r"\bgh[pousr]_[A-Za-z0-9]{36,}\b|\bgithub_pat_[A-Za-z0-9_]{50,}",
     "gitlab": r"\bglpat-[A-Za-z0-9_-]{20,}",
     "slack": r"\bxox[abprs]-[A-Za-z0-9-]{10,}",
-    "google": r"\bAIza[0-9A-Za-z_-]{35}\b",
+    "google": r"\bAIza[0-9A-Za-z_-]{35}(?![0-9A-Za-z_-])",
     "jwt": r"\beyJ[A-Za-z0-9_-]{10,}\.(?:[A-Za-z0-9_-]{10,}(?:\.[A-Za-z0-9_-]{10,})?)?",
     "pem": r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----",
 }
@@ -77,13 +77,14 @@ KV = re.compile(
     r"(?i)((?:PASSWORD|PASSWD|SECRET|TOKEN|API[-_]?KEY|ACCESS[-_]?KEY)[A-Z0-9_]*)"
     r"([\"']?\s*[=:]\s*[\"']?)(?!\$\{|<|\*)([^\s'\"`(){}\[\],;]{8,})"
 )
-DSN = re.compile(r"(\b[a-z][a-z0-9+.-]*://[^:/\s@\"'`]+:)([^@\s/\"'`]{1,200})(@)")
+DSN = re.compile(r"(\b[a-z][a-z0-9+.-]*://[^:/\s@\"'`]*:)([^@\s/\"'`]{1,200})(@)")
 ENV_KEY = re.compile(r"(?i)pass|secret|token|key")
 # `key=settings.S3_KEY` is code: an attribute chain without digits or from a lowercase root.
 ATTR_RE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+")
 PLACEHOLDER = re.compile(r"^(\$\{.*\}|<.*>|\*+|\{.*\}|x+|\.+)$", re.I)
 HASH_PREFIXES = ("$argon2", "$2a$", "$2b$", "$2y$", "$scrypt$", "pbkdf2")
-DEV_DEFAULTS = {"password", "pass", "secret", "postgres", "guest", "changeme", "example"}
+DEV_DEFAULTS = {"password", "pass", "secret", "postgres", "guest", "changeme", "example",
+                "rustfsadmin", "dev-only-jwt-secret-change-in-prod"}  # fmt: skip
 
 
 def _env_file(p: Path) -> dict[str, str]:
@@ -155,10 +156,15 @@ class Redactor:
 
     def _kv(self, m: re.Match, hit) -> str:
         v = m.group(3)
-        looks_secret = len(v) >= 20 or (re.search(r"\d", v) and re.search(r"[A-Za-z]", v))
+        looks_secret = (
+            len(v) >= 20
+            or bool(re.search(r"\d", v) and re.search(r"[A-Za-z]", v))
+            or bool(re.search(r"(?i)pass|secret", m.group(1)))  # passphrase: only letters, under 20
+        )
         if (
             v in self.allow
-            or v.startswith(("[REDACTED", "/"))  # a path (tokenUrl="/auth/login") is not one
+            or v.startswith("[REDACTED")
+            or (v.startswith("/") and len(v) < 20)  # a path (tokenUrl="/auth/login") is not one
             or PLACEHOLDER.match(v)
             or not looks_secret
             or v.startswith(HASH_PREFIXES)
@@ -242,7 +248,10 @@ def entries(tool: str, p: dict) -> list[tuple[str, str, bool]]:
         note = SESSION_NOTES.get(p.get("source") or "startup", f"session {p.get('source')}")
         return [("", f"_{note}_", False)] if note else []
     if ev == "UserPromptSubmit":
-        return [("Я", quote(str(p.get("prompt") or "")), True)]
+        prompt = str(p.get("prompt") or "")
+        if prompt.lstrip().startswith(("<task-notification", "<system-reminder")):
+            return []  # Claude Code присылает так завершения фоновых задач, это не я
+        return [("Я", quote(prompt), True)]
     if ev == "Stop":
         return [(name, str(p.get("last_assistant_message") or "_(без текста)_").strip(), False)]
     if ev == "SubagentStop":
@@ -272,7 +281,7 @@ def entries(tool: str, p: dict) -> list[tuple[str, str, bool]]:
 
 def session_file(tool: str, sid: str) -> Path:
     sessions = out_dir() / "sessions"
-    id8 = re.sub(r"[^A-Za-z0-9]", "", sid)[:8] or "unknown"
+    id8 = re.sub(r"[^A-Za-z0-9]", "", sid)[-8:] or "unknown"  # у UUIDv7 начало — время
     found = sorted(sessions.glob(f"*-{tool}-{id8}.md"))
     return found[0] if found else sessions / f"{datetime.now():%Y%m%d-%H%M}-{tool}-{id8}.md"
 
@@ -377,9 +386,13 @@ def scan_paths(paths: list[str]) -> list[str]:
         if not red.kinds(text):
             continue
         allow = logs not in f.resolve().parents
+        per_line = []
         for n, line in enumerate(text.splitlines(), 1):
             if not (allow and SCAN_ALLOW in line):
-                findings += [f"{f}:{n}: {k}" for k in red.kinds(line)]
+                per_line += [f"{f}:{n}: {k}" for k in red.kinds(line)]
+        if "pem" in red.kinds(text) and not any(x.endswith(": pem") for x in per_line):
+            per_line.append(f"{f}: pem (multi-line private key)")
+        findings += per_line
     return findings
 
 

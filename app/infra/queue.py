@@ -30,7 +30,8 @@ def claim(session: Session, limit: int) -> list[Any]:
             WHERE id IN (
                 SELECT id FROM jobs
                 WHERE (status = 'new' AND run_at <= now())
-                   OR (status = 'processing' AND locked_at < now() - interval '{STUCK_AFTER}')
+                   OR (status = 'processing' AND locked_at < now() - interval '{STUCK_AFTER}'
+                       AND attempts < {MAX_ATTEMPTS})
                 ORDER BY id LIMIT :limit
                 FOR UPDATE SKIP LOCKED)
             RETURNING id, kind, payload, attempts

@@ -5,6 +5,7 @@
     python3 tools/timer.py open                           открыть окно; время не сбрасывается
     python3 tools/timer.py stop                           остановить отсчёт и закрыть окно
     python3 tools/timer.py status                         этап и время одной строкой
+    python3 tools/timer.py active                         код 0, если интервью идёт (< 3 ч)
 
 Окно: тащить мышью, двойной клик — компактный режим, правая кнопка — меню.
 Только стандартная библиотека; tkinter берётся из системного Python (/usr/bin/python3).
@@ -159,10 +160,13 @@ def primary_monitor() -> tuple[int, int, int, int] | None:
         return None
     for line in out.splitlines():
         if " connected primary " in line:
-            geom = line.split(" connected primary ")[1].split()[0]  # 4384x2466+4384+0
-            size, x, y = geom.split("+")
-            w, h = size.split("x")
-            return int(x), int(y), int(w), int(h)
+            try:  # у выключенного монитора геометрии нет
+                geom = line.split(" connected primary ")[1].split()[0]  # 4384x2466+4384+0
+                size, x, y = geom.split("+")
+                w, h = size.split("x")
+                return int(x), int(y), int(w), int(h)
+            except (IndexError, ValueError):
+                return None
     return None
 
 
@@ -194,6 +198,9 @@ class Window:
         self.canvas.bind("<Double-Button-1>", lambda e: self.set_compact(not self.compact))
         self.canvas.bind("<Button-3>", self.on_menu)
         pos = self.state.get("pos")
+        sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+        if pos and not (0 <= pos[0] < sw - self.px(50) and 0 <= pos[1] < sh - self.px(30)):
+            pos = None  # раскладка мониторов изменилась — окно оказалось бы за экраном
         if not pos:
             mon = primary_monitor() or (0, 0, root.winfo_screenwidth(), root.winfo_screenheight())
             pos = (mon[0] + mon[2] - self.W - self.px(30), mon[1] + self.px(60))
@@ -424,7 +431,7 @@ def main(argv: list[str]) -> int:
     start = sub.add_parser("start", help="новый отсчёт")
     start.add_argument("--speed", type=float, default=1, help="ускорение, например 60")
     start.add_argument("--at", type=float, default=0, help="начать с этой минуты")
-    for name in ("open", "stop", "status", "gui"):
+    for name in ("open", "stop", "status", "active", "gui"):
         sub.add_parser(name)
     args = ap.parse_args(argv)
     if args.cmd == "start":
@@ -441,6 +448,9 @@ def main(argv: list[str]) -> int:
     if args.cmd == "status":
         print(status_line(load()))
         return 0
+    if args.cmd == "active":
+        state = load()
+        return 0 if state is not None and elapsed(state) < 3 * 3600 else 1
     return run_gui()
 
 

@@ -17,7 +17,7 @@ def item_created(session: Session, payload: dict[str, Any]) -> None:
     item = session.get(Item, payload["id"])
     if item is not None:
         item.status = "processed"
-        cache.delete(f"item:{item.id}")
+        cache.delete_after_commit(session, f"item:{item.id}")
 
 
 HANDLERS: dict[str, Callable[[Session, dict[str, Any]], None]] = {

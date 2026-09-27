@@ -217,5 +217,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Local state: timer, hook diagnostics
+# Local state: timer, hook diagnostics; keys and local env never go to git
 .local/
+.env.local
+*.pem
+*.key

@@ -66,14 +66,19 @@ timer-stop: ## Остановить и закрыть таймер
 	@$(TIMER) stop
 
 start: ## СТАРТ интервью: ветка interview-*, чистые ai-logs, таймер с 00:00
-	@if [[ "$$(git branch --show-current)" == interview-* ]]; then \
+	@branch="$$(git branch --show-current)"; \
+	if [[ "$$branch" == interview-* ]] && $(TIMER) active; then \
 		echo "Интервью уже идёт: открываю таймер"; $(TIMER) open; \
+	elif [[ "$$branch" == interview-* ]]; then \
+		echo "Ветка $$branch от прошлого интервью: git switch main, затем make start"; exit 2; \
 	else \
 		git switch -c "interview-$$(date +%Y%m%d-%H%M)" && python3 tools/ai_log.py clean && $(TIMER) start && \
 		echo "Открой НОВУЮ сессию агента (make ai): хуки ai-logs подхватываются при старте сессии"; \
 	fi
 
-finish: ## ФИНИШ: проверка секретов, commit и push ветки
+finish: ## ФИНИШ: проверка секретов, commit и push ветки interview-*
+	@[[ "$$(git branch --show-current)" == interview-* ]] || \
+		{ echo "Не ветка interview-*: сначала make start (иначе push уйдёт в main шаблона)"; exit 2; }
 	@git ls-files -co --exclude-standard -z | python3 tools/ai_log.py scan -
 	git add -A
 	git diff --cached --quiet || git commit -m "Interview result"

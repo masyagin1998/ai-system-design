@@ -1,6 +1,7 @@
 """Файлы в S3 (RustFS): загрузка и скачивание через API."""
 
 import uuid
+from pathlib import PurePosixPath
 
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, HTTPException, UploadFile
@@ -13,7 +14,8 @@ router = APIRouter(prefix="/files", tags=["files"])
 
 @router.post("", status_code=201)
 def upload_file(file: UploadFile) -> dict[str, str]:
-    key = f"{uuid.uuid4().hex}/{file.filename}"
+    name = PurePosixPath(file.filename or "file").name or "file"  # без "../"
+    key = f"{uuid.uuid4().hex}/{name}"
     storage.put(key, file.file, file.content_type or "application/octet-stream")
     return {"key": key, "url": storage.presign(key)}
 

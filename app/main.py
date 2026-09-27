@@ -1,5 +1,6 @@
-"""API. Новый роутер: app/api/<name>.py → app.include_router(...) ниже. Docs: /docs."""
+"""API. Новый роутер: app/api/<name>.py → app.include_router(...) в конце файла. Docs: /docs."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -12,6 +13,8 @@ from app.api import files, items
 from app.db import AsyncSessionDep, SessionDep
 from app.infra import cache, storage
 
+log = logging.getLogger("uvicorn.error")
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -20,17 +23,16 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="MVP", lifespan=lifespan)
-app.include_router(auth.router, prefix="/api")
-app.include_router(items.router, prefix="/api")
-app.include_router(files.router, prefix="/api")
 
 
 @app.exception_handler(IntegrityError)
 async def integrity_error(_: Request, exc: IntegrityError) -> JSONResponse:
     """Нарушение UNIQUE/FK → 409 без try/except в каждой ручке."""
+    log.warning("IntegrityError → 409: %s", exc.orig)
     return JSONResponse({"detail": str(exc.orig).splitlines()[0]}, status_code=409)
 
 
+# Служебные ручки — до роутеров: корневой catch-all вроде GET /{code} их не перекроет.
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
     return RedirectResponse("/docs")
@@ -50,3 +52,8 @@ async def health_async(session: AsyncSessionDep) -> dict[str, str]:
     await session.execute(text("SELECT 1"))
     await cache.ar.ping()
     return {"status": "ok"}
+
+
+app.include_router(auth.router, prefix="/api")
+app.include_router(items.router, prefix="/api")
+app.include_router(files.router, prefix="/api")

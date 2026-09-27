@@ -24,7 +24,8 @@ class Item(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
-    status: Mapped[str] = mapped_column(String(20), default="new")
+    # server_default обязателен для NOT NULL поля в уже заполненной таблице
+    status: Mapped[str] = mapped_column(String(20), default="new", server_default="new")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -36,9 +37,9 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     kind: Mapped[str] = mapped_column(String(100))
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    status: Mapped[str] = mapped_column(String(20), default="new")  # new/processing/done/failed
-    attempts: Mapped[int] = mapped_column(default=0)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
+    status: Mapped[str] = mapped_column(String(20), default="new", server_default="new")
+    attempts: Mapped[int] = mapped_column(default=0, server_default="0")
     run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None]

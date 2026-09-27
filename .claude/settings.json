@@ -83,12 +83,20 @@
   "permissions": {
     "allow": [
       "Bash(curl *)",
-      "Bash(docker compose *)",
+      "Bash(docker compose exec *)",
+      "Bash(docker compose logs *)",
+      "Bash(docker compose ps *)",
       "Bash(git diff *)",
       "Bash(git log *)",
       "Bash(git status *)",
       "Bash(jq *)",
-      "Bash(make *)",
+      "Bash(make build)",
+      "Bash(make demo)",
+      "Bash(make logs)",
+      "Bash(make migrate)",
+      "Bash(make migration *)",
+      "Bash(make test *)",
+      "Bash(make up)",
 
       "Bash(python3 tools/*)",
       "Bash(uv *)"

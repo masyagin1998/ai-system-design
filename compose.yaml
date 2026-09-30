@@ -28,7 +28,7 @@ services:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
       POSTGRES_DB: app
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["127.0.0.1:5440:5432"] # 5440: не пересекаться с рабочими базами (5432–5434)
     volumes: ["pg_data:/var/lib/postgresql"] # PG18: родительский каталог, не .../data
     healthcheck:
       <<: *health
@@ -38,7 +38,7 @@ services:
     image: redis:8.10.0
     restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no"] # кэш, без персистентности
-    ports: ["127.0.0.1:6379:6379"]
+    ports: ["127.0.0.1:6380:6379"] # 6380: 6379 часто занят другими проектами
     healthcheck:
       <<: *health
       test: ["CMD", "redis-cli", "ping"]

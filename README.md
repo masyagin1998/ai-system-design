@@ -13,6 +13,7 @@ Redis · RustFS (S3) · очередь задач в PostgreSQL + пул вор�
 make init              # .venv для IDE + сборка образа
 make up                # PostgreSQL, Redis, RustFS, api, worker; миграции
 make demo              # happy path через curl — всё зелёное
+# browser demo: http://localhost:8000/demo
 make ai                # Codex: один раз одобрить хуки ai-logs в /hooks, затем выйти
 make timer SPEED=60    # посмотреть таймер (2 часа за 2 минуты); закрыть — ПКМ или make stop
 make stop              # остановить всё и стереть данные: интервью начнётся с чистых БД
@@ -104,13 +105,13 @@ make stop              # остановить всё и стереть данн�
 - `make ai [M=gpt-6.1-sol] [E=low]` — Codex (GPT-6-Luna Fast Medium по умолчанию); в сессии — `/model`
 - `make timer [SPEED=60 AT=35]` — таймер без сброса; с параметрами — тестовый прогон
 
-API: http://localhost:8000/docs · консоль S3: http://localhost:9001 (rustfsadmin / rustfsadmin).
+API: http://localhost:8000/docs · browser demo: http://localhost:8000/demo · консоль S3:
+http://localhost:9001 (rustfsadmin / rustfsadmin).
 
 ## Как устроено
 
-- **Код** — `app/`: образец фичи `api/items.py` (CRUD, cache-aside в Redis, поиск через pg_trgm,
-  фоновая задача), `api/files.py` (S3), `auth.py` (users: регистрация и вход по email + пароль,
-  JWT), готовые помощники в `infra/`.
+- **Код** — `app/`: публикации и лента в `api/posts.py` и `api/feed.py`, браузерное демо в
+  `api/demo.py`, `auth.py` (регистрация и вход по email + пароль, JWT), помощники в `infra/`.
   Правила для агента — [AGENTS.md](AGENTS.md) (`CLAUDE.md` импортирует его).
 - **Очередь вместо Kafka** — таблица `jobs`: `queue.enqueue()` в той же транзакции (outbox даром),
   воркер забирает задачи через `FOR UPDATE SKIP LOCKED`, повторяет с backoff, после 5 попыток — `failed`.

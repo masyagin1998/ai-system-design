@@ -9,7 +9,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 
 from app.db import SessionLocal
 from app.infra import queue
-from app.jobs import HANDLERS
+from app.jobs import HANDLERS, process_post_outbox
 from app.settings import settings
 
 log = logging.getLogger("worker")
@@ -43,6 +43,14 @@ def main() -> None:
             try:
                 running = {f for f in running if not f.done()}
                 jobs = []
+                # Posts outbox shares PostgreSQL but remains separate from generic jobs.
+                with SessionLocal() as session:
+                    try:
+                        process_post_outbox(session, limit=max(1, n - len(running)))
+                        session.commit()
+                    except Exception:
+                        session.rollback()
+                        log.exception("posts outbox processing failed")
                 if len(running) < n:  # берём задачи в свободные потоки, не ждём весь батч
                     with SessionLocal() as session:
                         jobs = queue.claim(session, n - len(running))

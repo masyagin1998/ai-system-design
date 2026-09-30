@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from app import auth
-from app.api import files, items
+from app.api import demo, feed, posts
 from app.db import AsyncSessionDep, SessionDep
 from app.infra import cache, storage
 
@@ -35,7 +35,7 @@ async def integrity_error(_: Request, exc: IntegrityError) -> JSONResponse:
 # Служебные ручки — до роутеров: корневой catch-all вроде GET /{code} их не перекроет.
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
-    return RedirectResponse("/docs")
+    return RedirectResponse("/demo")
 
 
 @app.get("/health")
@@ -55,5 +55,6 @@ async def health_async(session: AsyncSessionDep) -> dict[str, str]:
 
 
 app.include_router(auth.router, prefix="/api/v1")
-app.include_router(items.router, prefix="/api/v1")
-app.include_router(files.router, prefix="/api/v1")
+app.include_router(posts.router, prefix="/api/v1")
+app.include_router(feed.router, prefix="/api/v1")
+app.include_router(demo.router)

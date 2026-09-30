@@ -2,14 +2,18 @@
 
 Интервью AI System Design. Цель — за ~45 минут показать работающий MVP через curl: happy path и
 интеграция с критичными компонентами. Production-архитектура и НФТ (RPS, отказоустойчивость,
-масштабирование) описаны в spec.md; таблицы, связи, ручки и шаги MVP — в plan.md.
+масштабирование) описаны в spec.md; таблицы (SQL), ручки `/api/v1`, нюансы и шаги MVP — в plan.md.
 В коде production-требования осознанно НЕ обеспечиваем.
 **Скорость важнее полноты. Простой код важнее «правильного».**
 
 ## Как работать
 - Отвечай по-русски и коротко. Имена в коде и API — английские.
-- Делай ровно заказанный шаг и сразу пиши код. Не пересказывай план, не исследуй репозиторий:
+- «Реализуй plan.md» — сделай ВСЕ шаги из раздела 5 по порядку, без остановок и вопросов:
+  после каждого шага — его curl-проверка; в конце обнови demo.sh под раздел 1 и прогони `make demo`.
+- Иначе делай ровно заказанный шаг. Сразу пиши код: не пересказывай план, не исследуй репозиторий —
   структура описана ниже, образец фичи — `app/api/items.py`.
+- SQL из plan.md переноси в `app/models.py` один-в-один (типы, NOT NULL, DEFAULT, UNIQUE, FK,
+  индексы). Все ручки — под `/api/v1` (префикс ставится в `app/main.py`).
 - Не задавай вопросов, если можно принять простое допущение: прими его и назови в отчёте.
 - Код синхронный (`def`, `SessionDep`). async — только если об этом явно попросили.
 - Тесты не пиши, если их явно не попросили. Проверка шага — curl.
@@ -26,7 +30,7 @@
 | Микросервисы | один сервис `app` (модули в `app/api/`) + `worker` |
 | Шардирование, реплики, партиции | одна PostgreSQL |
 | S3 | RustFS через `app/infra/storage.py` |
-| OAuth / SSO | нет; если нужен пользователь — `CurrentUser` из `app/auth.py` (JWT) |
+| OAuth / SSO | email + пароль из `app/auth.py` (таблица users, JWT); в ручке — `CurrentUser` |
 | WebSocket / push-уведомления | polling: GET-ручка статуса |
 | ClickHouse / аналитика | SQL-агрегаты в PostgreSQL |
 | Внешние API (платежи, SMS, партнёры) | функция-заглушка; реальный вызов — `app/infra/http.py` |
@@ -41,7 +45,7 @@ app/schemas.py      Pydantic-схемы
 app/api/<name>.py   ручки; новый роутер подключить в app/main.py
 app/jobs.py         обработчики фоновых задач: функция(session, payload) + запись в HANDLERS
 app/worker.py       пул воркеров (не трогать)
-app/auth.py         JWT: POST /api/auth/token, зависимость CurrentUser
+app/auth.py         users: register/token по email + пароль (JWT), зависимость CurrentUser
 app/db.py           SessionDep (sync), AsyncSessionDep (async)
 app/infra/cache.py    Redis: get_json, set_json, delete, once, rate_limit
 app/infra/storage.py  S3: put, get, presign
@@ -57,6 +61,7 @@ demo.sh             curl-сценарий happy path (make demo)
    Новое NOT NULL поле в существующей таблице — с `server_default`, как `Item.status`.
 3. Проверь curl'ом на `http://localhost:8000`; при ошибке смотри `make logs`.
 4. Отчёт до 5 строк: что сделано; команда проверки и её результат; допущения и упрощения.
+   Для «Реализуй plan.md» — по строке на шаг (✅/❌ + проверка), итог `make demo`, допущения.
 
 ## Команды
 `make up` · `make logs` · `make migration m="..."` · `make migrate` · `make psql` · `make demo` ·
@@ -64,7 +69,7 @@ demo.sh             curl-сценарий happy path (make demo)
 
 ## Нельзя
 - Читать и менять `manual/` (код без AI) и `ai-logs/` (пишут хуки).
-- `docker compose down -v`, `make reset`, удалять данные; делать commit/push без просьбы.
+- `make start`, `make stop`, `docker compose down -v`, удалять данные; commit/push без просьбы.
 - Менять spec.md и plan.md без просьбы. Если просят заполнить spec.md — сохраняй шаблон,
-  пиши кратко: ячейка таблицы — до 12 слов. В plan.md указывай конкретные поля PostgreSQL
-  с типами и ограничениями, связи, HTTP-ручки, важные нюансы и отдельные проверяемые шаги.
+  пиши кратко: пункт списка — до 12 слов. В plan.md — таблицы как SQL `CREATE TABLE` с типами,
+  ограничениями и FK, ручки `/api/v1`, важные нюансы и отдельные проверяемые шаги.

@@ -12,22 +12,24 @@ call "$API/health"
 call "$API/health/async"
 
 step "Создать item (в той же транзакции ставится job item.created)"
-ITEM=$(json -X POST "$API/api/items" -d '{"title":"Привет, мир"}')
+ITEM=$(json -X POST "$API/api/v1/items" -d '{"title":"Привет, мир"}')
 echo "$ITEM"
 ID=$(jq -er .id <<<"$ITEM")
 
 step "Через секунду воркер отметил item как processed"
 sleep 1.5
-call "$API/api/items/$ID"
+call "$API/api/v1/items/$ID"
 
 step "Поиск по подстроке (pg_trgm)"
-call "$API/api/items?q=%D0%BC%D0%B8%D1%80&limit=5"  # q=мир
+call "$API/api/v1/items?q=%D0%BC%D0%B8%D1%80&limit=5"  # q=мир
 
 step "Загрузить файл в S3 и скачать обратно"
-KEY=$(echo "hello s3" | curl -sS --fail-with-body -F "file=@-;filename=hello.txt" "$API/api/files" | jq -er .key)
+KEY=$(echo "hello s3" | curl -sS --fail-with-body -F "file=@-;filename=hello.txt" "$API/api/v1/files" | jq -er .key)
 echo "key=$KEY"
-call "$API/api/files/$KEY"
+call "$API/api/v1/files/$KEY"
 
-step "JWT: получить токен и вызвать защищённую ручку"
-TOKEN=$(json -X POST "$API/api/auth/token" -d '{"user_id":42}' | jq -er .access_token)
-call -H "Authorization: Bearer $TOKEN" "$API/api/auth/me"
+step "Регистрация, вход по email + пароль, защищённая ручка"
+CREDS="{\"email\":\"demo$RANDOM$RANDOM@example.com\",\"password\":\"secret123\"}"
+call -X POST "$API/api/v1/auth/register" -d "$CREDS"
+TOKEN=$(json -X POST "$API/api/v1/auth/token" -d "$CREDS" | jq -er .access_token)
+call -H "Authorization: Bearer $TOKEN" "$API/api/v1/auth/me"

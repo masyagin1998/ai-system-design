@@ -29,57 +29,26 @@ LOG = LOCAL / "timer.log"
 TOTAL = 120 * 60
 
 
-class Step(NamedTuple):
+class Stage(NamedTuple):
     start: int  # минута от начала интервью
     end: int
     name: str
     hint: str
-
-
-class Stage(NamedTuple):
-    start: int
-    end: int
-    name: str
-    hint: str
     color: str
-    steps: tuple[Step, ...]
 
 
 STAGES = (
-    Stage(0, 35, "Дизайн системы", "Ревью RFC джуна и архитектура (AI — по желанию)", "#4c8bf5", (
-        Step(0, 7, "Уточнение ФТ/НФТ", "Сверить скоуп, ФТ и НФТ из RFC джуна; задать вопросы"),
-        Step(7, 12, "Расчёты", "RPS/TPS чтения и записи, пик, storage, трафик"),
-        Step(12, 17, "API", "2–4 ключевые ручки: метод, путь, тело, коды ответов"),
-        Step(17, 21, "Данные", "Таблицы, ключи, индексы → можно отдать агенту шаг 1"),
-        Step(21, 30, "Схема и масштабирование",
-             "Кэш, очередь, S3, реплики, шардирование, корнер-кейсы"),
-        Step(30, 33, "Фиксация дизайна", "Что меняем в RFC джуна; на 33' дизайн фиксируется"),
-        Step(33, 35, "План MVP", "plan.md: prod → MVP, шаги для агента, первый промпт"),
-    )),
-    Stage(35, 80, "Реализация с AI", "Ключевой компонент: happy path + критичные интеграции",
-          "#34a853", (
-        Step(35, 40, "Каркас", "Модели + make migration; агент работает — вы комментируете"),
-        Step(40, 55, "Ключевые ручки", "Ручки happy path; curl после каждого шага"),
-        Step(55, 65, "Интеграции", "Кэш / очередь jobs / S3 — только критичные"),
-        Step(65, 73, "Демо-сценарий", "demo.sh: curl по happy path; тест — если просят"),
-        Step(73, 78, "Стабилизация", "Починить; упрощения prod → MVP записать в plan.md"),
-        Step(78, 80, "Показ MVP", "78': фиксируем реализацию, make demo"),
-    )),
-    Stage(80, 100, "Фрагмент руками", "Код без AI: структура данных или алгоритм", "#f2a900", (
-        Step(80, 83, "Разбор задачи", "Вход/выход, крайние случаи, сложность — вслух"),
-        Step(83, 95, "Пишем код", "Без AI; агент может доделывать MVP в фоне"),
-        Step(95, 100, "Проверка", "Прогнать примеры и крайние случаи, назвать O(·)"),
-    )),
-    Stage(100, 110, "Финальные вопросы", "2–3 вопроса от интервьюера", "#a142f4", (
-        Step(100, 110, "Вопросы интервьюера", "Коротко: trade-offs, масштабирование, отказы"),
-    )),
-    Stage(110, 120, "Финализация артефактов", "Код, тесты, ai-logs, spec.md, plan.md", "#ea4335", (
-        Step(110, 115, "Артефакты", "make finish: commit + push (код, spec, plan, ai-logs)"),
-        Step(115, 120, "Вопросы кандидата", "Свои вопросы интервьюеру"),
-    )),
-)
-CHECKPOINTS = ((33, "фиксируем дизайн"), (78, "фиксируем реализацию"),
-               (100, "переходим к вопросам"), (120, "время вышло"))  # fmt: skip
+    Stage(0, 35, "Дизайн системы", "spec.md — полная система → перемычка: фиксируем MVP → plan.md",
+          "#4c8bf5"),
+    Stage(35, 80, "Реализация с AI", "«Реализуй plan.md» → curl по шагам → make demo", "#34a853"),
+    Stage(80, 100, "Код руками", "Без AI: структура данных или алгоритм; агент доделывает MVP",
+          "#f2a900"),
+    Stage(100, 110, "Финальные вопросы", "Вопросы интервьюера: trade-offs, масштабирование, отказы",
+          "#a142f4"),
+    Stage(110, 120, "Финализация", "make stop: commit + push, данные стираются; свои вопросы",
+          "#ea4335"),
+)  # fmt: skip
+WARN_S = 120  # последние 2 минуты этапа — жёлтый фон
 
 
 # ---------- состояние ----------
@@ -122,12 +91,8 @@ def elapsed(state: dict, now: float | None = None) -> float:
     return max(0.0, (end - state["start"]) * state.get("speed", 1) + state.get("offset", 0))
 
 
-def where(t: float) -> tuple[Stage, Step]:
-    for stage in STAGES:
-        for step in stage.steps:
-            if t < step.end * 60:
-                return stage, step
-    return STAGES[-1], STAGES[-1].steps[-1]
+def where(t: float) -> Stage:
+    return next((stage for stage in STAGES if t < stage.end * 60), STAGES[-1])
 
 
 def fmt(seconds: float) -> str:
@@ -139,8 +104,7 @@ def status_line(state: dict | None) -> str:
     if state is None:
         return "Таймер не запущен"
     t = elapsed(state)
-    stage, step = where(t)
-    return f"{stage.name} › {step.name} · T+{fmt(t)}"
+    return f"{where(t).name} · T+{fmt(t)}"
 
 
 # ---------- окно ----------
@@ -301,21 +265,16 @@ class Window:
         self.compact = bool(self.state.get("compact"))
 
         t = elapsed(self.state)
-        stage, step = where(t)
+        stage = where(t)
         over = t >= TOTAL
         paused = bool(self.state.get("paused_at"))
         speed = self.state.get("speed", 1)
-        cp = next(((m, txt) for m, txt in CHECKPOINTS if t < m * 60), None)
-        hit = next(((m, txt) for m, txt in CHECKPOINTS if 0 <= t - m * 60 < 60), None)
-        warn = cp is not None and cp[0] * 60 - t <= 120
-        bg = self.PAUSE_BG if paused else self.ALERT_BG if over or hit else (
-            self.WARN_BG if warn else self.BG)  # fmt: skip
-
-        steps = [s for st in STAGES for s in st.steps]
-        nxt = steps[steps.index(step) + 1] if step is not steps[-1] else None
-        left = step.end * 60 - t
+        left = stage.end * 60 - t
+        bg = self.PAUSE_BG if paused else self.ALERT_BG if over else (
+            self.WARN_BG if left <= WARN_S else self.BG)  # fmt: skip
         clock = "+" + fmt(t - TOTAL) if over else fmt(left)
         clock_fg = self.AMBER if 0 < left <= 60 and not paused else self.FG
+        name = "ВРЕМЯ ВЫШЛО" if over else stage.name
         tags = " · ".join(filter(None, ["ПАУЗА" if paused else "",
                                         f"×{speed:g} тест" if speed != 1 else ""]))  # fmt: skip
 
@@ -324,37 +283,25 @@ class Window:
         if self.compact:
             h = 62
             clock_id = self.text(R, 4, clock, 24, bold=True, fg=clock_fg, right=True)
-            name = self.text(14, 8, "ВРЕМЯ ВЫШЛО" if over else step.name, 19, bold=True)
-            self.fit(name, 19, c.bbox(clock_id)[0] - self.px(12))
+            name_id = self.text(14, 8, name, 19, bold=True)
+            self.fit(name_id, 19, c.bbox(clock_id)[0] - self.px(12))
             self.draw_bar(t, 42)
             if tags:
                 self.text(R, 46, tags, 9, bold=True, right=True)
         else:
-            h = 236
+            h = 178
             n = STAGES.index(stage) + 1
-            if over:
-                self.text(14, 10, "ВРЕМЯ ВЫШЛО", 15, bold=True)
-            else:
-                self.text(14, 10, f"{stage.name.upper()} · {n}/{len(STAGES)}", 15, bold=True)
-                self.text(R, 10, f"этап {fmt(stage.end * 60 - t)}", 15, right=True)
-            self.text(14, 33, stage.hint, 12, fg=self.DIM)
-            clock_id = self.text(R, 54, clock, 36, bold=True, fg=clock_fg, right=True)
-            name = self.text(14, 60, "Сверх времени" if over else step.name, 24, bold=True)
-            self.fit(name, 24, c.bbox(clock_id)[0] - self.px(12))
-            hint = f"■ {hit[0]}' — {hit[1].upper()}" if hit else step.hint
-            hint = "Заканчиваем: make finish" if over and not hit else hint
-            self.text(14, 100, hint, 15, bold=bool(hit), wrap=472)
-            if nxt and not over:
-                self.text(14, 146, f"Далее: {nxt.name} · {nxt.end - nxt.start} мин", 13,
-                          fg=self.DIM)  # fmt: skip
-            if cp and not over:
-                self.text(14, 168, f"◆ {cp[0]}' {cp[1]} — через {fmt(cp[0] * 60 - t)}", 13,
-                          bold=True)  # fmt: skip
-            self.text(R, 168, f"T+{fmt(t)} / {fmt(TOTAL)}", 13, fg=self.DIM, right=True)
-            self.draw_bar(t, 194)
-            self.text(14, 212, "ПКМ — меню · двойной клик — компактно", 10, fg=self.DIM)
+            self.text(14, 10, f"ЭТАП {n}/{len(STAGES)}", 13, fg=self.DIM)
+            self.text(R, 10, f"T+{fmt(t)} / {fmt(TOTAL)}", 13, fg=self.DIM, right=True)
+            clock_id = self.text(R, 32, clock, 36, bold=True, fg=clock_fg, right=True)
+            name_id = self.text(14, 38, name, 24, bold=True)
+            self.fit(name_id, 24, c.bbox(clock_id)[0] - self.px(12))
+            hint = "Заканчиваем: make stop" if over else stage.hint
+            self.text(14, 84, hint, 14, wrap=472)
+            self.draw_bar(t, 136)
+            self.text(14, 154, "ПКМ — меню · двойной клик — компактно", 10, fg=self.DIM)
             if tags:
-                self.text(R, 212, tags, 11, bold=True, fg=self.AMBER, right=True)
+                self.text(R, 154, tags, 11, bold=True, fg=self.AMBER, right=True)
         c.configure(bg=bg, height=self.px(h))
         self.root.configure(bg=bg)
 
@@ -371,10 +318,7 @@ class Window:
             c.create_rectangle(a, y, b, y + h, fill=_dim(stage.color), width=0)
             if t > stage.start * 60:
                 c.create_rectangle(a, y, min(b, x(t)), y + h, fill=stage.color, width=0)
-            for step in stage.steps[1:]:
-                c.create_line(x(step.start * 60), y, x(step.start * 60), y + h, fill="#10131a")
-        for m, _ in CHECKPOINTS[:-1]:
-            c.create_line(x(m * 60), y - self.px(3), x(m * 60), y + h + self.px(3), fill="#ffffff")
+            c.create_line(a, y, a, y + h, fill="#10131a")
         c.create_rectangle(x(t) - self.px(1.5), y - self.px(4), x(t) + self.px(1.5),
                            y + h + self.px(4), fill="#ffffff", width=0)  # fmt: skip
 

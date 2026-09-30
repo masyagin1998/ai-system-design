@@ -1,4 +1,4 @@
-"""API. Новый роутер: app/api/<name>.py → app.include_router(...) в конце файла. Docs: /docs."""
+"""API. Новый роутер: app/api/<name>.py → include_router(..., prefix="/api/v1") внизу. /docs."""
 
 import logging
 from contextlib import asynccontextmanager
@@ -54,6 +54,6 @@ async def health_async(session: AsyncSessionDep) -> dict[str, str]:
     return {"status": "ok"}
 
 
-app.include_router(auth.router, prefix="/api")
-app.include_router(items.router, prefix="/api")
-app.include_router(files.router, prefix="/api")
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(items.router, prefix="/api/v1")
+app.include_router(files.router, prefix="/api/v1")

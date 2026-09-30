@@ -205,7 +205,7 @@ def training_active() -> bool:
 
 
 def phase_tag(now: float) -> str:
-    """`Реализация с AI › Ключевые ручки · T+42:10` from the timer, or "" when it is not running."""
+    """`Реализация с AI · T+42:10` from the timer, or "" when it is not running."""
     try:
         sys.path.insert(0, str(TOOLS))
         import timer
@@ -214,10 +214,10 @@ def phase_tag(now: float) -> str:
         if state is None:
             return ""
         t = timer.elapsed(state, now)
-        stage, step = timer.where(t)
+        stage = timer.where(t)
     except Exception:
         return ""
-    return f"{stage.name} › {step.name} · T+{timer.fmt(t)}"
+    return f"{stage.name} · T+{timer.fmt(t)}"
 
 
 def quote(text: str) -> str:
